@@ -1,5 +1,4 @@
 # Sri-s-Sanctuary-is-Online-
-# Sri's Sanctuary
 
 Sri's Sanctuary is a high-performance, zero-friction interactive AI space designed with advanced reasoning capabilities and robust safety attitude guardrails. Powered by FastAPI and the `openai/gpt-oss-120b` model via Groq.
 
@@ -9,9 +8,6 @@ Sri's Sanctuary is a high-performance, zero-friction interactive AI space design
 - **Multilingual Support:** Seamlessly detects and responds in multiple languages (Indonesian, English, etc.).
 - **Zero-Friction UI:** Clean, distraction-free modern interface.
 
-## Tech Stack
-- Backend: Python, FastAPI, Uvicorn, Groq SDK
-- Frontend: HTML5, CSS3, JavaScript (Vanilla)
 - Model: `openai/gpt-oss-120b`
 
 ## Setup & Installation
