@@ -38,9 +38,25 @@ SYSTEM_PROMPT = (
 # Sapaan Ikonik Mastermind
 GREETING_MESSAGE = "Hei kamu, iya kamu, sini dong ngobrol bareng aku di Sri's Sanctuary. Kita bisa ngobrol santai dan bantuin kamu dengan tugas apapun, tapi jangan kurang ajar yah, ntar kulibas 😏"
 
-# Judul Antarmuka
-st.title("🛡️ Sri's Sanctuary")
-st.caption("Powered by openai/gpt-oss-120b & Groq (Direct REST API)")
+# --- TAMPILAN PEMBUKA / HEADER ESTETIK ---
+st.markdown(
+    """
+    <div style='background: linear-gradient(135deg, #1e1b4b, #312e81); padding: 25px; border-radius: 15px; text-align: center; color: white; margin-bottom: 20px;'>
+        <h1 style='margin: 0; font-size: 2.2em;'>🛡️ Sri's Sanctuary</h1>
+        <p style='margin-top: 10px; font-size: 1.1em; color: #cbd5e1;'>Ruang Aman, Pintar, dan Tanpa Kompromi terhadap Toksisitas.</p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+# Sidebar Informasi Tambahan untuk Tampilan Pembuka
+with st.sidebar:
+    st.markdown("### Tentang Sanctuary ✨")
+    st.info("Aplikasi eksklusif persembahan Mastermind untuk ruang interaksi yang cerdas, elegan, dan tegas.")
+    st.markdown("---")
+    if st.button("🔄 Reset Percakapan"):
+        st.session_state.messages = [{"role": "assistant", "content": GREETING_MESSAGE}]
+        st.rerun()
 
 # Inisialisasi riwayat chat
 if "messages" not in st.session_state:
@@ -52,7 +68,7 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 # Kotak input chat
-if user_input := st.chat_input("Ketik pesanmu di sini..."):
+if user_input := st.chat_input("Ketik pesanmu di sini, sayang..."):
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.markdown(user_input)
@@ -65,7 +81,8 @@ if user_input := st.chat_input("Ketik pesanmu di sini..."):
             # Format riwayat pesan untuk Groq REST API
             formatted_messages = [{"role": "system", "content": SYSTEM_PROMPT}]
             for m in st.session_state.messages:
-                formatted_messages.append({"role": m["role"], "content": m["content"]})
+                if m["role"] in ["user", "assistant"]:
+                    formatted_messages.append({"role": m["role"], "content": m["content"]})
 
             payload = {
                 "model": "openai/gpt-oss-120b",
@@ -91,6 +108,8 @@ if user_input := st.chat_input("Ketik pesanmu di sini..."):
                 message_placeholder.markdown(reply_text)
                 st.session_state.messages.append({"role": "assistant", "content": reply_text})
 
+        except urllib.error.HTTPError as he:
+            error_body = he.read().decode("utf-8")
+            message_placeholder.error(f"HTTP Error {he.code}: {he.reason}\nDetail: {error_body}")
         except Exception as e:
-            error_msg = f"Gagal terhubung ke server Groq: {str(e)}"
-            message_placeholder.markdown(error_msg)
+            message_placeholder.error(f"Kendala tak terduga: {str(e)}")
