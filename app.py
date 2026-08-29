@@ -1,7 +1,7 @@
+
 import streamlit as st
-import urllib.request
-import json
 import os
+from groq import Groq
 
 # Konfigurasi Halaman
 st.set_page_config(
@@ -24,6 +24,9 @@ if not groq_api_key:
 if not groq_api_key:
     st.error("⚠️ GROQ_API_KEY belum ditemukan! Harap masukkan kunci API Groq di menu Secrets Streamlit Cloud (Settings -> Secrets).")
     st.stop()
+
+# Inisialisasi Klien Resmi Groq (Menghindari Error 1010 Cloudflare)
+client = Groq(api_key=groq_api_key)
 
 # System Prompt & Guideline
 SYSTEM_PROMPT = (
@@ -78,38 +81,23 @@ if user_input := st.chat_input("Ketik pesanmu di sini, sayang..."):
         message_placeholder.markdown("Sedang berpikir...")
         
         try:
-            # Format riwayat pesan untuk Groq REST API
+            # Format riwayat pesan untuk SDK Groq
             formatted_messages = [{"role": "system", "content": SYSTEM_PROMPT}]
             for m in st.session_state.messages:
                 if m["role"] in ["user", "assistant"]:
                     formatted_messages.append({"role": m["role"], "content": m["content"]})
 
-            payload = {
-                "model": "openai/gpt-oss-120b",
-                "messages": formatted_messages,
-                "temperature": 0.7,
-                "max_tokens": 1024
-            }
-
-            req = urllib.request.Request(
-                "https://api.groq.com/openai/v1/chat/completions",
-                data=json.dumps(payload).encode("utf-8"),
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {groq_api_key}"
-                },
-                method="POST"
+            # Memanggil API menggunakan official client Groq
+            completion = client.chat.completions.create(
+                model="openai/gpt-oss-120b",
+                messages=formatted_messages,
+                temperature=0.7,
+                max_tokens=1024
             )
+            
+            reply_text = completion.choices[0].message.content
+            message_placeholder.markdown(reply_text)
+            st.session_state.messages.append({"role": "assistant", "content": reply_text})
 
-            with urllib.request.urlopen(req) as response:
-                res_data = json.loads(response.read().decode("utf-8"))
-                reply_text = res_data["choices"][0]["message"]["content"]
-                
-                message_placeholder.markdown(reply_text)
-                st.session_state.messages.append({"role": "assistant", "content": reply_text})
-
-        except urllib.error.HTTPError as he:
-            error_body = he.read().decode("utf-8")
-            message_placeholder.error(f"HTTP Error {he.code}: {he.reason}\nDetail: {error_body}")
         except Exception as e:
-            message_placeholder.error(f"Kendala tak terduga: {str(e)}")
+            message_placeholder.error(f"Kendala koneksi Groq: {str(e)}")
