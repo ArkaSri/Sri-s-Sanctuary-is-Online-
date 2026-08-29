@@ -1,7 +1,7 @@
 import streamlit as st
+import urllib.request
+import json
 import os
-import toml
-from groq import Groq
 
 # Konfigurasi Halaman
 st.set_page_config(
@@ -10,30 +10,22 @@ st.set_page_config(
     layout="centered"
 )
 
-# Memuat API Key dari st.secrets atau file toml lokal
+# Mengambil API Key dari st.secrets atau environment
 groq_api_key = None
 try:
-    if "general" in st.secrets:
+    if hasattr(st, "secrets") and "general" in st.secrets:
         groq_api_key = st.secrets["general"].get("GROQ_API_KEY")
 except Exception:
     pass
 
 if not groq_api_key:
-    secrets_path = ".streamlit/secrets.toml"
-    if os.path.exists(secrets_path):
-        try:
-            config = toml.load(secrets_path)
-            groq_api_key = config.get("general", {}).get("GROQ_API_KEY")
-        except Exception:
-            pass
+    groq_api_key = os.environ.get("GROQ_API_KEY")
 
 if not groq_api_key:
-    groq_api_key = os.environ.get("GROQ_API_KEY", "MISSING_API_KEY")
+    st.error("⚠️ GROQ_API_KEY belum ditemukan! Harap masukkan kunci API Groq di menu Secrets Streamlit Cloud (Settings -> Secrets).")
+    st.stop()
 
-# Inisialisasi Groq Client
-client = Groq(api_key=groq_api_key)
-
-# System Prompt & Guideline (Tegas, Cerdas, & Sarkas ke User Kurang Ajar)
+# System Prompt & Guideline
 SYSTEM_PROMPT = (
     "Kamu adalah inti dari Sri's Sanctuary. "
     "GUIDELINE UTAMA & SIKAP:\n"
@@ -43,12 +35,12 @@ SYSTEM_PROMPT = (
     "- Multilingual: Deteksi bahasa user (Indonesia, Inggris, dll) dan balas dengan kefasihan yang natural."
 )
 
-# Sapaan Ikonik Pilihan Mastermind
+# Sapaan Ikonik Mastermind
 GREETING_MESSAGE = "Hei kamu, iya kamu, sini dong ngobrol bareng aku di Sri's Sanctuary. Kita bisa ngobrol santai dan bantuin kamu dengan tugas apapun, tapi jangan kurang ajar yah, ntar kulibas 😏"
 
 # Judul Antarmuka
 st.title("🛡️ Sri's Sanctuary")
-st.caption("Powered by openai/gpt-oss-120b & Groq")
+st.caption("Powered by openai/gpt-oss-120b & Groq (Direct REST API)")
 
 # Inisialisasi riwayat chat
 if "messages" not in st.session_state:
@@ -61,31 +53,44 @@ for message in st.session_state.messages:
 
 # Kotak input chat
 if user_input := st.chat_input("Ketik pesanmu di sini..."):
-    if groq_api_key == "MISSING_API_KEY":
-        st.error("Groq API Key belum dikonfigurasi di Streamlit Secrets atau secrets.toml.")
-    else:
-        st.session_state.messages.append({"role": "user", "content": user_input})
-        with st.chat_message("user"):
-            st.markdown(user_input)
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    with st.chat_message("user"):
+        st.markdown(user_input)
 
-        with st.chat_message("assistant"):
-            message_placeholder = st.empty()
-            message_placeholder.markdown("Sedang berpikir...")
-            try:
-                # Format riwayat untuk dikirim ke model openai/gpt-oss-120b
-                chat_history = [{"role": "system", "content": SYSTEM_PROMPT}]
-                for m in st.session_state.messages:
-                    chat_history.append({"role": m["role"], "content": m["content"]})
+    with st.chat_message("assistant"):
+        message_placeholder = st.empty()
+        message_placeholder.markdown("Sedang berpikir...")
+        
+        try:
+            # Format riwayat pesan untuk Groq REST API
+            formatted_messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+            for m in st.session_state.messages:
+                formatted_messages.append({"role": m["role"], "content": m["content"]})
 
-                completion = client.chat.completions.create(
-                    model="openai/gpt-oss-120b",
-                    messages=chat_history,
-                    temperature=0.7,
-                    max_tokens=1024,
-                )
-                reply_text = completion.choices[0].message.content
+            payload = {
+                "model": "openai/gpt-oss-120b",
+                "messages": formatted_messages,
+                "temperature": 0.7,
+                "max_tokens": 1024
+            }
+
+            req = urllib.request.Request(
+                "https://api.groq.com/openai/v1/chat/completions",
+                data=json.dumps(payload).encode("utf-8"),
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {groq_api_key}"
+                },
+                method="POST"
+            )
+
+            with urllib.request.urlopen(req) as response:
+                res_data = json.loads(response.read().decode("utf-8"))
+                reply_text = res_data["choices"][0]["message"]["content"]
+                
                 message_placeholder.markdown(reply_text)
                 st.session_state.messages.append({"role": "assistant", "content": reply_text})
-            except Exception as e:
-                error_msg = f"Gagal terhubung ke model: {str(e)}"
-                message_placeholder.markdown(error_msg)
+
+        except Exception as e:
+            error_msg = f"Gagal terhubung ke server Groq: {str(e)}"
+            message_placeholder.markdown(error_msg)
